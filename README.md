@@ -24,108 +24,161 @@ Testing the C Program for the desired output.
 # PROGRAM:
 
 ## C Program that illustrate communication between two process using unnamed pipes using Linux API system calls
-#include <stdio.h> #include <stdlib.h> #include <sys/types.h> #include <sys/stat.h> #include <string.h> #include <fcntl.h> #include <unistd.h> #include <sys/wait.h>
+```
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/wait.h>
 
-void server(int, int); void client(int, int);
+void server(int, int);
+void client(int, int);
 
-int main() { int p1[2], p2[2], pid; pipe(p1); pipe(p2); pid = fork();
-~~~
-if (pid == 0) {
-    close(p1[1]); // child closes write end of pipe1
-    close(p2[0]); // child closes read end of pipe2
-    server(p1[0], p2[1]);
-    exit(0);
+int main() {
+    int p1[2], p2[2], pid;
+    pipe(p1);
+    pipe(p2);
+    pid = fork();
+
+    if (pid == 0) {
+        close(p1[1]); // child closes write end of pipe1
+        close(p2[0]); // child closes read end of pipe2
+        server(p1[0], p2[1]);
+        exit(0);
+    }
+
+    close(p1[0]); // parent closes read end of pipe1
+    close(p2[1]); // parent closes write end of pipe2
+    client(p1[1], p2[0]);
+    wait(NULL);
+    return 0;
 }
 
-close(p1[0]); // parent closes read end of pipe1
-close(p2[1]); // parent closes write end of pipe2
-client(p1[1], p2[0]);
-wait(NULL);
-return 0;
-~~~
+void server(int rfd, int wfd) {
+    int n;
+    char fname[2000], buff[2000];
+    n = read(rfd, fname, 2000);
+    fname[n] = '\0';
+    int fd = open(fname, O_RDONLY);
+    if (fd < 0)
+        write(wfd, "can't open", 9);
+    else {
+        n = read(fd, buff, 2000);
+        write(wfd, buff, n);
+        close(fd);
+    }
 }
 
-void server(int rfd, int wfd) { int n; char fname[2000], buff[2000]; n = read(rfd, fname, 2000); fname[n] = '\0'; int fd = open(fname, O_RDONLY); if (fd < 0) write(wfd, "can't open", 9); else { n = read(fd, buff, 2000); write(wfd, buff, n); close(fd); } }
+void client(int wfd, int rfd) {
+    int n;
+    char fname[2000], buff[2000];
+    printf("Enter filename: ");
+    scanf("%s", fname);
+    write(wfd, fname, 2000);
+    n = read(rfd, buff, 2000);
+    buff[n] = '\0';
+    write(1, buff, n);
+}
 
-void client(int wfd, int rfd) { int n; char fname[2000], buff[2000]; printf("Enter filename: "); scanf("%s", fname); write(wfd, fname, 2000); n = read(rfd, buff, 2000); buff[n] = '\0'; write(1, buff, n); }
-
+```
 
 
 ## OUTPUT
-![WhatsApp Image 2026-03-11 at 8 56 29 AM](https://github.com/user-attachments/assets/924c58c5-3ba3-4f4e-ad94-01c5a47215b6)
+<img width="529" height="133" alt="image" src="https://github.com/user-attachments/assets/4c57e384-cb48-40d9-988e-dad52db1ae79" />
+
 
 
 ## C Program that illustrate communication between two process using named pipes using Linux API system calls
-#include <stdio.h> #include <stdlib.h> #include <unistd.h> #include <fcntl.h> #include <sys/types.h> #include <sys/stat.h> #include <string.h>
+```
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <string.h>
 
-#define FIFO_FILE "/tmp/my_fifo" #define FILE_NAME "hello.txt"
+#define FIFO_FILE "/tmp/my_fifo"
+#define FILE_NAME "hello.txt"
 
-void server(); void client();
+void server();
+void client();
 
-int main() { pid_t pid;
-~~~
-// Create FIFO if it doesn't exist
-mkfifo(FIFO_FILE, 0666);
+int main() {
+    pid_t pid;
 
-pid = fork();  // Create a child process
+    // Create FIFO if it doesn't exist
+    mkfifo(FIFO_FILE, 0666);
 
-if (pid > 0) {
-    // Parent process acts as the server
-    sleep(1);  // Ensure client is ready
-    server();
-} else if (pid == 0) {
-    // Child process acts as the client
-    client();
-} else {
-    perror("Fork failed");
-    exit(EXIT_FAILURE);
+    pid = fork();  // Create a child process
+
+    if (pid > 0) {
+        // Parent process acts as the server
+        sleep(1);  // Ensure client is ready
+        server();
+    } else if (pid == 0) {
+        // Child process acts as the client
+        client();
+    } else {
+        perror("Fork failed");
+        exit(EXIT_FAILURE);
+    }
+
+    return 0;
 }
 
-return 0;
-~~~
+// Server: Reads from hello.txt and writes to FIFO
+void server() {
+    int fifo_fd, file_fd;
+    char buffer[1024];
+    ssize_t bytes_read;
+
+    file_fd = open(FILE_NAME, O_RDONLY);
+    if (file_fd == -1) {
+        perror("Error opening hello.txt");
+        exit(EXIT_FAILURE);
+    }
+
+    fifo_fd = open(FIFO_FILE, O_WRONLY);
+    if (fifo_fd == -1) {
+        perror("Error opening FIFO");
+        exit(EXIT_FAILURE);
+    }
+
+    while ((bytes_read = read(file_fd, buffer, sizeof(buffer))) > 0) {
+        write(fifo_fd, buffer, bytes_read);
+    }
+
+    close(file_fd);
+    close(fifo_fd);
 }
 
-// Server: Reads from hello.txt and writes to FIFO void server() { int fifo_fd, file_fd; char buffer[1024]; ssize_t bytes_read;
-~~~
-file_fd = open(FILE_NAME, O_RDONLY);
-if (file_fd == -1) {
-    perror("Error opening hello.txt");
-    exit(EXIT_FAILURE);
+// Client: Reads from FIFO and prints the content
+void client() {
+    int fifo_fd;
+    char buffer[1024];
+    ssize_t bytes_read;
+
+    fifo_fd = open(FIFO_FILE, O_RDONLY);
+    if (fifo_fd == -1) {
+        perror("Error opening FIFO");
+        exit(EXIT_FAILURE);
+    }
+
+    while ((bytes_read = read(fifo_fd, buffer, sizeof(buffer))) > 0) {
+        write(STDOUT_FILENO, buffer, bytes_read);
+    }
+
+    close(fifo_fd);
 }
-
-fifo_fd = open(FIFO_FILE, O_WRONLY);
-if (fifo_fd == -1) {
-    perror("Error opening FIFO");
-    exit(EXIT_FAILURE);
-}
-
-while ((bytes_read = read(file_fd, buffer, sizeof(buffer))) > 0) {
-    write(fifo_fd, buffer, bytes_read);
-}
-
-close(file_fd);
-close(fifo_fd);
-~~~
-}
-// Client: Reads from FIFO and prints the content void client() { int fifo_fd; char buffer[1024]; ssize_t bytes_read;
-~~~
-fifo_fd = open(FIFO_FILE, O_RDONLY);
-if (fifo_fd == -1) {
-    perror("Error opening FIFO");
-    exit(EXIT_FAILURE);
-}
-
-while ((bytes_read = read(fifo_fd, buffer, sizeof(buffer))) > 0) {
-    write(STDOUT_FILENO, buffer, bytes_read);
-}
-
-close(fifo_fd);
-~~~
-
-
+```
 
 ## OUTPUT
-![WhatsApp Image 2026-03-11 at 9 01 28 AM](https://github.com/user-attachments/assets/03a17b65-5a35-477d-b0eb-377e8366db2d)
+
+<img width="622" height="138" alt="image" src="https://github.com/user-attachments/assets/59931033-cab3-4c60-a4c2-9ee2ccf4bc86" />
 
 
 # RESULT:
